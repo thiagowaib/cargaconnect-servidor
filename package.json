@@ -1,0 +1,20 @@
+{
+  "name": "cargaconnect-servidor",
+  "version": "1.0.0",
+  "description": "Servidor do Carga Connect",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma": "prisma"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.10.2",
+    "body-parser": "^1.20.2",
+    "express": "^4.18.3",
+    "nodemon": "^3.1.0",
+    "prisma": "^5.10.2"
+  }
+}

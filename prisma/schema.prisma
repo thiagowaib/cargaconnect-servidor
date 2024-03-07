@@ -1,0 +1,30 @@
+// Definição do provedor de banco de dados e conexão com o SQLite
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./cargaconnect.db"
+}
+
+// Definição do modelo para a tabela LOCALIZACAO
+model LOCALIZACAO {
+  ID          Int       @id @default(autoincrement()) // Chave primária autoincrementada
+  LATITUDE    Float
+  LONGITUDE   Float
+  ID_APARELHO Int
+  DATAHORA    DateTime
+
+  // Relacionamento com a tabela APARELHO
+  APARELHO    APARELHO  @relation(fields: [ID_APARELHO], references: [ID])
+}
+
+// Definição do modelo para a tabela APARELHO
+model APARELHO {
+  ID          Int       @id @default(autoincrement()) // Chave primária autoincrementada
+  DESCRICAO   String
+
+  // Relacionamento com a tabela LOCALIZACAO
+  LOCALIZACAO LOCALIZACAO[]
+}
