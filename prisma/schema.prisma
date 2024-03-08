@@ -14,7 +14,7 @@ model LOCALIZACAO {
   LATITUDE    Float
   LONGITUDE   Float
   ID_APARELHO Int
-  DATAHORA    DateTime
+  DATAHORA    DateTime  @default(now()) // Definindo o padrão para o timestamp atual
 
   // Relacionamento com a tabela APARELHO
   APARELHO    APARELHO  @relation(fields: [ID_APARELHO], references: [ID])
