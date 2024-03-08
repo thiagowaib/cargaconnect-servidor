@@ -7,42 +7,38 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = 3000;
 
-// Configuração do MQTT
-const mqttBrokerUrl = 'mqtt://localhost';
-const mqttTopic = 'geolocation';
+const mqttClient = mqtt.connect('mqtt://localhost'); // Altere o URL do broker MQTT conforme necessário
 
-const mqttClient = mqtt.connect(mqttBrokerUrl);
-
+// Evento de conexão do cliente MQTT
 mqttClient.on('connect', () => {
   console.log('Connected to MQTT broker');
-  mqttClient.subscribe(mqttTopic);
+  mqttClient.subscribe('cargaConnect', (err) => {
+    if (err) {
+      console.error('Error subscribing to topic:', err);
+    } else {
+      console.log('Subscribed to topic "cargaConnect"');
+    }
+  });
 });
 
+// Evento de recebimento de mensagem MQTT
 mqttClient.on('message', async (topic, message) => {
-  try {
-    const data = JSON.parse(message);
-    await saveLocationToDatabase(data);
-  } catch (error) {
-    console.error('Erro ao processar mensagem MQTT', error);
+  if (topic === 'cargaConnect') {
+    try {
+      const { latitude, longitude, idAparelho } = JSON.parse(message.toString());
+      const location = await prisma.LOCALIZACAO.create({
+        data: {
+          LATITUDE: latitude,
+          LONGITUDE: longitude,
+          ID_APARELHO: idAparelho,
+        }
+      });
+      console.log('Location saved:', location);
+    } catch (error) {
+      console.error('Error saving location:', error);
+    }
   }
 });
-
-// Função para salvar a localização no banco de dados
-const saveLocationToDatabase = async (data) => {
-  const { latitude, longitude, id } = data;
-  try {
-    const location = await prisma.LOCALIZACAO.create({
-      data: {
-        LATITUDE: latitude,
-        LONGITUDE: longitude,
-        ID_APARELHO: id
-      }
-    });
-    console.log(`Localizacao do aparelho ${id} salva.`);
-  } catch (error) {
-    console.error(`Erro ao salvar localizacao do aparelho ${id}`, error);
-  }
-};
 
 // Middleware para fazer o parse do corpo da requisição como JSON
 app.use(bodyParser.json());
