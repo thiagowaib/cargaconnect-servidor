@@ -1,5 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const mqtt = require('mqtt');
 
@@ -21,30 +22,15 @@ mqttClient.on('connect', () => {
   });
 });
 
-// Evento de recebimento de mensagem MQTT
-mqttClient.on('message', async (topic, message) => {
-  if (topic === 'cargaConnect') {
-    try {
-      const { latitude, longitude, idAparelho } = JSON.parse(message.toString());
-      const location = await prisma.LOCALIZACAO.create({
-        data: {
-          LATITUDE: latitude,
-          LONGITUDE: longitude,
-          ID_APARELHO: idAparelho,
-        }
-      });
-      console.log('Location saved:', location);
-    } catch (error) {
-      console.error('Error saving location:', error);
-    }
-  }
-});
+
 
 // Middleware para fazer o parse do corpo da requisição como JSON
 app.use(bodyParser.json());
 
+app.use(cors());
+
 // Rota para cadastrar um novo aparelho
-app.post('/cadastrar', async (req, res) => {
+app.post('/cadastro/aparelho', async (req, res) => {
   try {
     const { descricao } = req.body;
     const aparelho = await prisma.APARELHO.create({
@@ -59,7 +45,70 @@ app.post('/cadastrar', async (req, res) => {
   }
 });
 
+// Rota para consultar todas as localizações mais recentes
+app.get('/consulta', async (req, res) => {
+  try {
+    const localizacoes = await prisma.LOCALIZACAO.findMany({
+      select: {
+        LATITUDE: true,
+        LONGITUDE: true,
+        APARELHO: {
+          select: {
+            ID: true,
+            DESCRICAO: true,
+          }
+        }
+      },
+      orderBy: {
+        DATAHORA: 'desc'
+      },
+      distinct: ['ID_APARELHO']
+    });
+
+    let dados = [];
+    localizacoes.map(localizacao => {
+      dados.push({
+        LATITUDE: localizacao.LATITUDE,
+        LONGITUDE: localizacao.LONGITUDE,
+        APARELHO_ID: localizacao.APARELHO.ID,
+        APARELHO_DESCRICAO: localizacao.APARELHO.DESCRICAO,
+      })
+    });
+
+    res.status(200).json(dados);
+  } catch (error) {
+    console.error('Erro ao consultar localizacoes:', error);
+    res.status(400).json({ message: 'Erro previsto' });
+  }
+});
+
 // Inicia o servidor
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+});
+
+const io = require('socket.io')(server, {
+  cors: {
+    origin: '*',
+  }
+});
+
+// Evento de recebimento de mensagem MQTT
+mqttClient.on('message', async (topic, message) => {
+  if (topic === 'cargaConnect') {
+    try {
+      const { latitude, longitude, idAparelho } = JSON.parse(message.toString());
+      const location = await prisma.LOCALIZACAO.create({
+        data: {
+          LATITUDE: latitude,
+          LONGITUDE: longitude,
+          ID_APARELHO: idAparelho,
+        }
+      });
+      console.log('Location saved:', location);
+      io.emit('novaLocalizacao', {LATITUDE: location.LATITUDE, LONGITUDE: location.LONGITUDE}); // Envia a nova localização para todos os clientes conectados
+    } catch (error) {
+      console.error('Error saving location:', error);
+    }
+  }
 });
