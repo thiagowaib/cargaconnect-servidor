@@ -10,21 +10,48 @@ datasource db {
 
 // Definição do modelo para a tabela LOCALIZACAO
 model LOCALIZACAO {
-  ID          Int       @id @default(autoincrement()) // Chave primária autoincrementada
+  ID          String   @id @default(uuid()) // Chave primária com UUID
   LATITUDE    Float
   LONGITUDE   Float
-  ID_APARELHO Int
-  DATAHORA    DateTime  @default(now()) // Definindo o padrão para o timestamp atual
+  ID_APARELHO String // Alterando também para UUID
+  DATAHORA    DateTime @default(now()) // Definindo o padrão para o timestamp atual
 
   // Relacionamento com a tabela APARELHO
-  APARELHO    APARELHO  @relation(fields: [ID_APARELHO], references: [ID])
+  APARELHO APARELHO @relation(fields: [ID_APARELHO], references: [ID])
 }
 
 // Definição do modelo para a tabela APARELHO
 model APARELHO {
-  ID          Int       @id @default(autoincrement()) // Chave primária autoincrementada
-  DESCRICAO   String
+  ID        String @id @default(uuid()) // Chave primária com UUID
+  DESCRICAO String
 
   // Relacionamento com a tabela LOCALIZACAO
   LOCALIZACAO LOCALIZACAO[]
+  VEICULO     VEICULO[]
+}
+
+// Definição do modelo para a tabela TIPO_VEICULO
+model TIPO_VEICULO {
+  CODIGO    Int       @id @default(autoincrement()) // Chave primária
+  DESCRICAO String
+  VEICULO   VEICULO[]
+}
+
+// Definição do modelo para a tabela MOTORISTA
+model MOTORISTA {
+  CODIGO  Int       @id @default(autoincrement()) // Chave primária
+  NOME    String
+  VEICULO VEICULO[]
+}
+
+// Definição do modelo para a tabela VEICULO
+model VEICULO {
+  ID               String       @id @default(uuid()) // Chave primária com UUID autoincremental
+  DESCRICAO        String 
+  TIPO             TIPO_VEICULO @relation(fields: [TIPO_CODIGO], references: [CODIGO])
+  MOTORISTA        MOTORISTA    @relation(fields: [MOTORISTA_CODIGO], references: [CODIGO])
+  APARELHO         APARELHO     @relation(fields: [APARELHO_ID], references: [ID])
+  TIPO_CODIGO      Int // Campo para a chave estrangeira com TIPO_VEICULO
+  MOTORISTA_CODIGO Int // Campo para a chave estrangeira com MOTORISTA
+  APARELHO_ID      String // Campo para a chave estrangeira com APARELHO
 }

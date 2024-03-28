@@ -1,0 +1,29 @@
+/*
+  Warnings:
+
+  - The primary key for the `LOCALIZACAO` table will be changed. If it partially fails, the table could be left without primary key constraint.
+  - The primary key for the `APARELHO` table will be changed. If it partially fails, the table could be left without primary key constraint.
+
+*/
+-- RedefineTables
+PRAGMA foreign_keys=OFF;
+CREATE TABLE "new_LOCALIZACAO" (
+    "ID" TEXT NOT NULL PRIMARY KEY,
+    "LATITUDE" REAL NOT NULL,
+    "LONGITUDE" REAL NOT NULL,
+    "ID_APARELHO" TEXT NOT NULL,
+    "DATAHORA" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "LOCALIZACAO_ID_APARELHO_fkey" FOREIGN KEY ("ID_APARELHO") REFERENCES "APARELHO" ("ID") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+INSERT INTO "new_LOCALIZACAO" ("DATAHORA", "ID", "ID_APARELHO", "LATITUDE", "LONGITUDE") SELECT "DATAHORA", "ID", "ID_APARELHO", "LATITUDE", "LONGITUDE" FROM "LOCALIZACAO";
+DROP TABLE "LOCALIZACAO";
+ALTER TABLE "new_LOCALIZACAO" RENAME TO "LOCALIZACAO";
+CREATE TABLE "new_APARELHO" (
+    "ID" TEXT NOT NULL PRIMARY KEY,
+    "DESCRICAO" TEXT NOT NULL
+);
+INSERT INTO "new_APARELHO" ("DESCRICAO", "ID") SELECT "DESCRICAO", "ID" FROM "APARELHO";
+DROP TABLE "APARELHO";
+ALTER TABLE "new_APARELHO" RENAME TO "APARELHO";
+PRAGMA foreign_key_check;
+PRAGMA foreign_keys=ON;
