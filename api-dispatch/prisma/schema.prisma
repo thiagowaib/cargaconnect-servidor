@@ -1,0 +1,17 @@
+// Definição do provedor de banco de dados e conexão com o SQLite
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dispatch.db"
+}
+
+// Definição do modelo para a tabela MENSAGENS
+model MENSAGENS {
+  ID               String       @id @default(uuid()) // Chave primária com UUID autoincremental
+  CONTEUDO         String 
+  DATAHORA         DateTime @default(now()) // Definindo o padrão para o timestamp atual
+  DATAHORAENVIO    DateTime?
+}

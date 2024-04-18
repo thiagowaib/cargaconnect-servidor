@@ -1,0 +1,21 @@
+{
+  "name": "cargaconnect-servidor-api-dispatch",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "api": "nodemon ./src/index.js",
+    "prisma": "prisma"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.12.1",
+    "amqplib": "^0.10.4",
+    "mqtt": "^5.5.2",
+    "nodemon": "^3.1.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.12.1"
+  }
+}

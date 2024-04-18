@@ -1,24 +1,26 @@
 {
-  "name": "cargaconnect-servidor",
+  "name": "cargaconnect-servidor-api-main",
   "version": "1.0.0",
   "description": "Servidor do Carga Connect",
   "main": "src/index.js",
   "scripts": {
-    "dev": "nodemon .",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "api": "nodemon .",
     "prisma": "prisma"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.10.2",
+    "amqplib": "^0.10.4",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "express": "^4.18.3",
     "http": "^0.0.1-security",
     "mqtt": "^5.3.6",
     "nodemon": "^3.1.0",
-    "prisma": "^5.10.2",
     "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "prisma": "^5.12.1"
   }
 }

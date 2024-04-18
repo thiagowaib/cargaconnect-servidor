@@ -2,7 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
-const mqtt = require('mqtt');
+var amqp = require('amqplib/callback_api');
 
 const prisma = new PrismaClient();
 const app = express();
@@ -115,36 +115,49 @@ const io = require('socket.io')(server, {
   }
 });
 
-const mqttClient = mqtt.connect('mqtt://localhost'); // Altere o URL do broker MQTT conforme necessário
-
-// Evento de conexão do cliente MQTT
-mqttClient.on('connect', () => {
-  console.log('Connected to MQTT broker');
-  mqttClient.subscribe('cargaConnect', (err) => {
-    if (err) {
-      console.error('Error subscribing to topic:', err);
-    } else {
-      console.log('Subscribed to topic "cargaConnect"');
-    }
-  });
-});
-
-// Evento de recebimento de mensagem MQTT
-mqttClient.on('message', async (topic, message) => {
-  if (topic === 'cargaConnect') {
-    try {
-      const { latitude, longitude, idAparelho } = JSON.parse(message.toString());
-      const location = await prisma.LOCALIZACAO.create({
-        data: {
-          LATITUDE: latitude,
-          LONGITUDE: longitude,
-          ID_APARELHO: idAparelho,
-        }
-      });
-      console.log('Location saved:', location);
-      io.emit('novaLocalizacao', {LATITUDE: location.LATITUDE, LONGITUDE: location.LONGITUDE}); // Envia a nova localização para todos os clientes conectados
-    } catch (error) {
-      console.error('Error saving location:', error);
-    }
+/**
+ * AMQP setup
+ */
+amqp.connect('amqp://localhost', function(error0, connection) {
+  if (error0) {
+    throw error0;
   }
+  connection.createChannel(function(error1, channel) {
+    if (error1) {
+      throw error1;
+    }
+    var queue = 'carga-connect-dispatch';
+
+    channel.assertQueue(queue, {
+      durable: true
+    });
+
+    channel.prefetch(1);
+
+    console.log(" [*] Waiting for messages in %s. To exit press CTRL+C", queue);
+    channel.consume(queue, async function(msg) {
+
+      console.log(" [x] Received %s", msg.content.toString());
+
+      try {
+        const { latitude, longitude, idAparelho } = JSON.parse(msg.content.toString());
+        const location = await prisma.LOCALIZACAO.create({
+          data: {
+            LATITUDE: latitude,
+            LONGITUDE: longitude,
+            ID_APARELHO: idAparelho,
+          }
+        });
+        console.log('Location saved:', location);
+        io.emit('novaLocalizacao', {LATITUDE: location.LATITUDE, LONGITUDE: location.LONGITUDE}); // Envia a nova localização para todos os clientes conectados
+      } catch (error) {
+        console.error('Error saving location:', error);
+      }
+
+      console.log(" [x] Done");
+      channel.ack(msg);
+    }, {
+      noAck: false
+    });
+  });
 });
