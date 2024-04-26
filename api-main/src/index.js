@@ -8,6 +8,19 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = 3000;
 
+// const LRU_TTL = require('lru-ttl-cache');
+// const cache= new LRU_TTL({
+//   ttl:	'73h', // 3 dias + 1h
+// });
+
+// var Cache = require('ttl');
+// var cache = new Cache({
+//     ttl: 1000 * 60 * 60 * 24 * 3
+// });
+
+const Keyv = require('keyv');
+const cache = new Keyv();
+let cacheIdx = 0;
 
 // Middleware para fazer o parse do corpo da requisição como JSON
 app.use(bodyParser.json());
@@ -66,9 +79,18 @@ app.post('/cadastro/veiculo', async (req, res) => {
   }
 });
 
+var d = new Date();
+d.setDate(d.getDate() - 3);
+let z = Date.now() - d.getTime();
+
 // Rota para consultar todas as localizações mais recentes
 app.get('/consulta', async (req, res) => {
   try {
+
+    // Data atual - 3 dias
+    let d = new Date();
+    d.setDate(d.getDate() - 3);
+
     const localizacoes = await prisma.LOCALIZACAO.findMany({
       select: {
         LATITUDE: true,
@@ -80,13 +102,28 @@ app.get('/consulta', async (req, res) => {
           }
         }
       },
+      where: {
+          DATAHORA: {
+            lte:  d
+          },
+      },
       orderBy: {
         DATAHORA: 'desc'
       },
-      distinct: ['ID_APARELHO']
+      // distinct: ['ID_APARELHO']
     });
 
     let dados = [];
+    for(let i=0; i < cacheIdx; i++) {
+      let value = await cache.get(`${i}`)
+      dados.push({
+        LATITUDE: value.latitude,
+        LONGITUDE: value.longitude,
+        APARELHO_ID: value.id,
+        APARELHO_DESCRICAO: value.descricao,
+      })
+    }
+
     localizacoes.map(localizacao => {
       dados.push({
         LATITUDE: localizacao.LATITUDE,
@@ -149,6 +186,16 @@ amqp.connect('amqp://localhost', function(error0, connection) {
           }
         });
         console.log('Location saved:', location);
+
+        const aparelho = await prisma.APARELHO.findUnique({
+          where: {
+            ID: idAparelho
+          }
+        })
+
+        // Salva em cache >>>  ID: {LAT, LONG, DATAHORA}
+        await cache.set(`${cacheIdx++}`, {latitude, longitude, datahora: location.DATAHORA, id: aparelho.ID, descricao: aparelho.DESCRICAO}, (1000*60*60*24*3));
+
         io.emit('novaLocalizacao', {LATITUDE: location.LATITUDE, LONGITUDE: location.LONGITUDE}); // Envia a nova localização para todos os clientes conectados
       } catch (error) {
         console.error('Error saving location:', error);
@@ -161,3 +208,5 @@ amqp.connect('amqp://localhost', function(error0, connection) {
     });
   });
 });
+
+// mosquitto_pub -t cargaConnect -m '{"latitude": 42.456, "longitude": 22.012, "idAparelho": "16b265f3-4c94-4a04-aad5-fff65707f958"}'
