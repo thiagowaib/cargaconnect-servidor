@@ -1,13 +1,27 @@
-const mqtt = require('mqtt');
-var amqp = require('amqplib/callback_api');
+/**
+ * ==========================================
+ * Importações
+ * ==========================================
+ */
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const mqtt             = require('mqtt');
+const amqp             = require('amqplib/callback_api');
+
+const prisma           = new PrismaClient();
+const amqpInterval     = 5000;
 
 /**
- * MQTT SETUP
+ * ==========================================
+ * Instanciação do broker MQTT
+ * ==========================================
  */
-const mqttClient = mqtt.connect('mqtt://localhost'); // Altere o URL do broker MQTT conforme necessário
+const mqttClient = mqtt.connect('mqtt://localhost');
 
+/**
+ * ==========================================
+ * Configuração do broker MQTT
+ * ==========================================
+ */
 // Evento de conexão do cliente MQTT
 mqttClient.on('connect', () => {
   console.log('Connected to MQTT broker');
@@ -38,10 +52,10 @@ mqttClient.on('message', async (topic, message) => {
 });
 
 /**
- * AMQP [SENDER] SETUP
+ * ==========================================
+ * Configuração do broker AMQP - Envio
+ * ==========================================
  */
-
-// Connect to localhost
 amqp.connect('amqp://localhost', function(error0, connection) {
   if (error0) {
     throw error0;
@@ -87,13 +101,10 @@ amqp.connect('amqp://localhost', function(error0, connection) {
             channel.sendToQueue(queue, Buffer.from(msg.CONTEUDO), {
                 persistent: true
             });
-            console.log(" [x] Sent '%s'", msg.CONTEUDO);
+            console.log(" [x] Mensagem AMQP enviada >> '%s'", msg.CONTEUDO);
         });
 
-    }, 5000);
-    
-    // connection.close();
-    // process.exit(0)
+    }, amqpInterval);
   });
 });
 
