@@ -1,31 +1,28 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
+/**
+ * ==========================================
+ * Importações
+ * ==========================================
+ */
 const { PrismaClient } = require('@prisma/client');
-var amqp = require('amqplib/callback_api');
+const express          = require('express');
+const bodyParser       = require('body-parser');
+const cors             = require('cors');
+const amqp             = require('amqplib/callback_api');
+const Keyv             = require('keyv');
 
 const prisma = new PrismaClient();
-const app = express();
-const PORT = 3000;
-
-// const LRU_TTL = require('lru-ttl-cache');
-// const cache= new LRU_TTL({
-//   ttl:	'73h', // 3 dias + 1h
-// });
-
-// var Cache = require('ttl');
-// var cache = new Cache({
-//     ttl: 1000 * 60 * 60 * 24 * 3
-// });
-
-const Keyv = require('keyv');
-const cache = new Keyv();
+const cache  = new Keyv();
+const app    = express();
+const PORT   = 3000;
 let cacheIdx = 0;
 
-// Middleware para fazer o parse do corpo da requisição como JSON
-app.use(bodyParser.json());
 
-// Utiliza o cors
+/**
+ * ==========================================
+ * Roteamento API - RESTful
+ * ==========================================
+ */
+app.use(bodyParser.json());
 app.use(cors());
 
 // Rota para cadastrar um novo aparelho
@@ -40,7 +37,7 @@ app.post('/cadastro/aparelho', async (req, res) => {
     res.status(200).json({ id: aparelho.ID });
   } catch (error) {
     console.error('Erro ao cadastrar aparelho:', error);
-    res.status(400).json({ message: 'Erro previsto' });
+    res.status(400).json({ message: 'Nao foi possivel cadastrar aparelho', error });
   }
 });
 
@@ -56,7 +53,7 @@ app.post('/cadastro/motorista', async (req, res) => {
     res.status(200).json({ codigo: motorista.CODIGO });
   } catch (error) {
     console.error('Erro ao cadastrar motorista:', error);
-    res.status(400).json({ message: 'Erro previsto', error});
+    res.status(400).json({ message: 'Nao foi possivel cadastrar motorista', error});
   }
 });
 
@@ -75,13 +72,9 @@ app.post('/cadastro/veiculo', async (req, res) => {
     res.status(200).json({ id: veiculo.ID });
   } catch (error) {
     console.error('Erro ao cadastrar veiculo:', error);
-    res.status(400).json({ message: 'Erro previsto', error});
+    res.status(400).json({ message: 'Nao foi possivel cadastrar veiculo', error});
   }
 });
-
-var d = new Date();
-d.setDate(d.getDate() - 3);
-let z = Date.now() - d.getTime();
 
 // Rota para consultar todas as localizações mais recentes
 app.get('/consulta', async (req, res) => {
@@ -102,29 +95,26 @@ app.get('/consulta', async (req, res) => {
           }
         }
       },
-      where: {
-          DATAHORA: {
-            lte:  d
-          },
-      },
       orderBy: {
         DATAHORA: 'desc'
       },
-      // distinct: ['ID_APARELHO']
+      distinct: ['ID_APARELHO']
     });
 
     let dados = [];
-    for(let i=0; i < cacheIdx; i++) {
-      let value = await cache.get(`${i}`)
-      dados.push({
-        LATITUDE: value.latitude,
-        LONGITUDE: value.longitude,
-        APARELHO_ID: value.id,
-        APARELHO_DESCRICAO: value.descricao,
-      })
-    }
 
-    localizacoes.map(localizacao => {
+    // for(let i=0; i < cacheIdx; i++) {
+    //   let value = await cache.get(`${i}`)
+    //   dados.push({
+    //     LATITUDE: value.latitude,
+    //     LONGITUDE: value.longitude,
+    //     APARELHO_ID: value.id,
+    //     APARELHO_DESCRICAO: value.descricao,
+    //   })
+    // }
+
+    // Carrega um array de dados de retorno
+    localizacoes.forEach(localizacao => {
       dados.push({
         LATITUDE: localizacao.LATITUDE,
         LONGITUDE: localizacao.LONGITUDE,
@@ -136,16 +126,99 @@ app.get('/consulta', async (req, res) => {
     res.status(200).json(dados);
   } catch (error) {
     console.error('Erro ao consultar localizacoes:', error);
-    res.status(400).json({ message: 'Erro previsto' });
+    res.status(400).json({ message: 'Erro ao consultar localizacoes', error });
   }
 });
 
-// Inicia o servidor
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Rota para consultar a lista de aparelhos cadastrados
+app.get('/consulta/aparelhos', async (req, res) => {
+  try {
+
+    const aparelhos = await prisma.APARELHO.findMany({
+      select: {
+        ID: true,
+        DESCRICAO: true
+      },
+      orderBy: {
+        DESCRICAO: 'asc'
+      }
+    });
+
+    res.status(200).json(aparelhos);
+  } catch (error) {
+    console.error('Erro ao consultar aparelhos:', error);
+    res.status(400).json({ message: 'Erro ao consultar aparelhos', error });
+  }
 });
 
-// Instancia o SocketIo
+// Rota para consultar o historico de localizacoes de um aparelho
+app.get('/consulta', async (req, res) => {
+  try {
+
+    // Data atual - 3 dias
+    let d = new Date();
+    d.setDate(d.getDate() - 3);
+
+    const localizacoes = await prisma.LOCALIZACAO.findMany({
+      select: {
+        LATITUDE: true,
+        LONGITUDE: true,
+        APARELHO: {
+          select: {
+            ID: true,
+            DESCRICAO: true,
+          }
+        }
+      },
+      orderBy: {
+        DATAHORA: 'desc'
+      },
+      distinct: ['ID_APARELHO']
+    });
+
+    let dados = [];
+
+    // for(let i=0; i < cacheIdx; i++) {
+    //   let value = await cache.get(`${i}`)
+    //   dados.push({
+    //     LATITUDE: value.latitude,
+    //     LONGITUDE: value.longitude,
+    //     APARELHO_ID: value.id,
+    //     APARELHO_DESCRICAO: value.descricao,
+    //   })
+    // }
+
+    // Carrega um array de dados de retorno
+    localizacoes.forEach(localizacao => {
+      dados.push({
+        LATITUDE: localizacao.LATITUDE,
+        LONGITUDE: localizacao.LONGITUDE,
+        APARELHO_ID: localizacao.APARELHO.ID,
+        APARELHO_DESCRICAO: localizacao.APARELHO.DESCRICAO,
+      })
+    });
+
+    res.status(200).json(dados);
+  } catch (error) {
+    console.error('Erro ao consultar localizacoes:', error);
+    res.status(400).json({ message: 'Erro ao consultar localizacoes', error });
+  }
+});
+
+/**
+ * ==========================================
+ * Instanciação do Servidor
+ * ==========================================
+ */
+const server = app.listen(PORT, () => {
+  console.log(`Servidor executando na porta ${PORT}`);
+});
+
+/**
+ * ==========================================
+ * Instanciação do Socket
+ * ==========================================
+ */
 const io = require('socket.io')(server, {
   cors: {
     origin: '*',
@@ -153,7 +226,9 @@ const io = require('socket.io')(server, {
 });
 
 /**
- * AMQP setup
+ * ==========================================
+ * Instanciação do broker AMQP - Recebimento
+ * ==========================================
  */
 amqp.connect('amqp://localhost', function(error0, connection) {
   if (error0) {
@@ -164,18 +239,15 @@ amqp.connect('amqp://localhost', function(error0, connection) {
       throw error1;
     }
     var queue = 'carga-connect-dispatch';
-
+    
     channel.assertQueue(queue, {
       durable: true
     });
-
-    channel.prefetch(1);
-
-    console.log(" [*] Waiting for messages in %s. To exit press CTRL+C", queue);
+    
+    console.log(" [*] Aguardando mensagens AMQP.");
     channel.consume(queue, async function(msg) {
-
-      console.log(" [x] Received %s", msg.content.toString());
-
+      
+      console.log(" [x] Nova mensagem recebida, processando...");
       try {
         const { latitude, longitude, idAparelho } = JSON.parse(msg.content.toString());
         const location = await prisma.LOCALIZACAO.create({
@@ -196,9 +268,10 @@ amqp.connect('amqp://localhost', function(error0, connection) {
         // Salva em cache >>>  ID: {LAT, LONG, DATAHORA}
         await cache.set(`${cacheIdx++}`, {latitude, longitude, datahora: location.DATAHORA, id: aparelho.ID, descricao: aparelho.DESCRICAO}, (1000*60*60*24*3));
 
+        // Emite uma mensagem via Socket para o cliente (navegador)
         io.emit('novaLocalizacao', {LATITUDE: location.LATITUDE, LONGITUDE: location.LONGITUDE}); // Envia a nova localização para todos os clientes conectados
       } catch (error) {
-        console.error('Error saving location:', error);
+        console.error('Erro ao salvar localizacao:', error);
       }
 
       console.log(" [x] Done");
