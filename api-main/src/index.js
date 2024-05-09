@@ -83,37 +83,49 @@ app.post('/cadastro/veiculo', async (req, res) => {
 // Rota para consultar todas as localizações mais recentes
 app.get('/consulta', async (req, res) => {
   try {
-
-    const localizacoes = await prisma.LOCALIZACAO.findMany({
-      select: {
-        LATITUDE: true,
-        LONGITUDE: true,
-        APARELHO: {
-          select: {
-            ID: true,
-            DESCRICAO: true,
+    // Verifica se há consulta salva em cache
+    const cacheData = await cache.get('rest::/consulta');
+    console.log(cacheData)
+    // Caso exista o retorno da consulta em cache, retorna-a
+    if(cacheData != null) {
+      res.status(200).json(cacheData);
+    } 
+    // Caso contrario, realiza a consulta no banco
+    else {
+      const localizacoes = await prisma.LOCALIZACAO.findMany({
+        select: {
+          LATITUDE: true,
+          LONGITUDE: true,
+          APARELHO: {
+            select: {
+              ID: true,
+              DESCRICAO: true,
+            }
           }
-        }
-      },
-      orderBy: {
-        DATAHORA: 'desc'
-      },
-      distinct: ['ID_APARELHO']
-    });
+        },
+        orderBy: {
+          DATAHORA: 'desc'
+        },
+        distinct: ['ID_APARELHO']
+      });
 
-    let dados = [];
+      let dados = [];
 
-    // Carrega um array de dados de retorno
-    localizacoes.forEach(localizacao => {
-      dados.push({
-        LATITUDE: localizacao.LATITUDE,
-        LONGITUDE: localizacao.LONGITUDE,
-        APARELHO_ID: localizacao.APARELHO.ID,
-        APARELHO_DESCRICAO: localizacao.APARELHO.DESCRICAO,
-      })
-    });
+      // Carrega um array de dados de retorno
+      localizacoes.forEach(localizacao => {
+        dados.push({
+          LATITUDE: localizacao.LATITUDE,
+          LONGITUDE: localizacao.LONGITUDE,
+          APARELHO_ID: localizacao.APARELHO.ID,
+          APARELHO_DESCRICAO: localizacao.APARELHO.DESCRICAO,
+        })
+      });
 
-    res.status(200).json(dados);
+      // Salva em cache o resultado da consulta
+      await cache.set(`rest::/consulta`, dados, (1000*60*60*24));
+
+      res.status(200).json(dados);
+    }
   } catch (error) {
     console.error('Erro ao consultar localizacoes:', error);
     res.status(400).json({ message: 'Erro ao consultar localizacoes', error });
@@ -253,7 +265,9 @@ amqp.connect('amqp://localhost', function(error0, connection) {
             ID_APARELHO: idAparelho,
           }
         });
-        
+        // Remove o cache da consulta de aparelhos
+        await cache.delete(`rest::/consulta`);
+
         // Emite uma mensagem via Socket para o cliente (navegador)
         io.emit('novaLocalizacao', {LATITUDE: location.LATITUDE, LONGITUDE: location.LONGITUDE}); // Envia a nova localização para todos os clientes conectados
       } catch (error) {
