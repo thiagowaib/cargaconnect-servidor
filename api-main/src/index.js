@@ -61,7 +61,7 @@ app.post('/cadastro/motorista', async (req, res) => {
   }
 });
 
-// Rota para cadastrar um novo motorista
+// Rota para cadastrar um novo veiculo
 app.post('/cadastro/veiculo', async (req, res) => {
   try {
     const { descricao, aparelho, tipo, motorista} = req.body;
