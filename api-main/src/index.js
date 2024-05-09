@@ -85,7 +85,6 @@ app.get('/consulta', async (req, res) => {
   try {
     // Verifica se há consulta salva em cache
     const cacheData = await cache.get('rest::/consulta');
-    console.log(cacheData)
     // Caso exista o retorno da consulta em cache, retorna-a
     if(cacheData != null) {
       res.status(200).json(cacheData);
@@ -104,7 +103,7 @@ app.get('/consulta', async (req, res) => {
           }
         },
         orderBy: {
-          DATAHORA: 'desc'
+          DATAHORA: 'asc'
         },
         distinct: ['ID_APARELHO']
       });
@@ -150,7 +149,7 @@ app.get('/consulta/aparelhos', async (req, res) => {
           DESCRICAO: true
         },
         orderBy: {
-          DESCRICAO: 'asc'
+          DESCRICAO: 'desc'
         }
       });
 
@@ -282,4 +281,5 @@ amqp.connect('amqp://localhost', function(error0, connection) {
   });
 });
 
-// mosquitto_pub -t cargaConnect -m '{"latitude": 42.456, "longitude": 22.012, "idAparelho": "16b265f3-4c94-4a04-aad5-fff65707f958"}'
+// mosquitto_pub -t cargaConnect -m '{"latitude": -22.640685, "longitude": -50.403998, "idAparelho": "16b265f3-4c94-4a04-aad5-fff65707f958"}'
+// mosquitto_pub -t cargaConnect -m '{"latitude": -22.327700, "longitude": -49.093848, "idAparelho": "24a14731-0485-4ab0-b1cd-537cbb1d7585"}'
