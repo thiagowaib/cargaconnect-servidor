@@ -34,6 +34,10 @@ app.post('/cadastro/aparelho', async (req, res) => {
         DESCRICAO: descricao
       }
     });
+
+    // Remove o cache da consulta de aparelhos
+    await cache.delete(`rest::/consulta/aparelhos`);
+
     res.status(200).json({ id: aparelho.ID });
   } catch (error) {
     console.error('Erro ao cadastrar aparelho:', error);
@@ -80,10 +84,6 @@ app.post('/cadastro/veiculo', async (req, res) => {
 app.get('/consulta', async (req, res) => {
   try {
 
-    // Data atual - 3 dias
-    let d = new Date();
-    d.setDate(d.getDate() - 3);
-
     const localizacoes = await prisma.LOCALIZACAO.findMany({
       select: {
         LATITUDE: true,
@@ -102,16 +102,6 @@ app.get('/consulta', async (req, res) => {
     });
 
     let dados = [];
-
-    // for(let i=0; i < cacheIdx; i++) {
-    //   let value = await cache.get(`${i}`)
-    //   dados.push({
-    //     LATITUDE: value.latitude,
-    //     LONGITUDE: value.longitude,
-    //     APARELHO_ID: value.id,
-    //     APARELHO_DESCRICAO: value.descricao,
-    //   })
-    // }
 
     // Carrega um array de dados de retorno
     localizacoes.forEach(localizacao => {
@@ -133,18 +123,29 @@ app.get('/consulta', async (req, res) => {
 // Rota para consultar a lista de aparelhos cadastrados
 app.get('/consulta/aparelhos', async (req, res) => {
   try {
+    // Verifica se há consulta salva em cache
+    const cacheData = await cache.get('rest::/consulta/aparelhos');
 
-    const aparelhos = await prisma.APARELHO.findMany({
-      select: {
-        ID: true,
-        DESCRICAO: true
-      },
-      orderBy: {
-        DESCRICAO: 'asc'
-      }
-    });
+    // Caso exista o retorno da consulta em cache, retorna-a
+    if(cacheData != null) {
+      res.status(200).json(cacheData)
+    } 
+    // Caso contrario, realiza a consulta no banco
+    else {
+      const aparelhos = await prisma.APARELHO.findMany({
+        select: {
+          ID: true,
+          DESCRICAO: true
+        },
+        orderBy: {
+          DESCRICAO: 'asc'
+        }
+      });
 
-    res.status(200).json(aparelhos);
+      // Salva em cache o resultado da consulta
+      await cache.set(`rest::/consulta/aparelhos`, aparelhos, (1000*60*60*24));
+      res.status(200).json(aparelhos);
+    }
   } catch (error) {
     console.error('Erro ao consultar aparelhos:', error);
     res.status(400).json({ message: 'Erro ao consultar aparelhos', error });
@@ -152,17 +153,19 @@ app.get('/consulta/aparelhos', async (req, res) => {
 });
 
 // Rota para consultar o historico de localizacoes de um aparelho
-app.get('/consulta', async (req, res) => {
+app.get('/consulta/historico/:idAparelho&:limiteHistorico', async (req, res) => {
   try {
+    const {idAparelho, limiteHistorico} = req.params;
 
-    // Data atual - 3 dias
-    let d = new Date();
-    d.setDate(d.getDate() - 3);
+    // Calcula a data atual - limite historico (horas)
+    let dataHistorico = new Date();
+    dataHistorico.setHours(dataHistorico.getHours() - limiteHistorico)
 
     const localizacoes = await prisma.LOCALIZACAO.findMany({
       select: {
         LATITUDE: true,
         LONGITUDE: true,
+        DATAHORA: true,
         APARELHO: {
           select: {
             ID: true,
@@ -170,23 +173,16 @@ app.get('/consulta', async (req, res) => {
           }
         }
       },
+      where: {
+        ID_APARELHO: idAparelho,
+        DATAHORA: {gte: dataHistorico}
+      },
       orderBy: {
         DATAHORA: 'desc'
-      },
-      distinct: ['ID_APARELHO']
+      }
     });
 
     let dados = [];
-
-    // for(let i=0; i < cacheIdx; i++) {
-    //   let value = await cache.get(`${i}`)
-    //   dados.push({
-    //     LATITUDE: value.latitude,
-    //     LONGITUDE: value.longitude,
-    //     APARELHO_ID: value.id,
-    //     APARELHO_DESCRICAO: value.descricao,
-    //   })
-    // }
 
     // Carrega um array de dados de retorno
     localizacoes.forEach(localizacao => {
@@ -195,13 +191,14 @@ app.get('/consulta', async (req, res) => {
         LONGITUDE: localizacao.LONGITUDE,
         APARELHO_ID: localizacao.APARELHO.ID,
         APARELHO_DESCRICAO: localizacao.APARELHO.DESCRICAO,
+        DATAHORA: localizacao.DATAHORA
       })
     });
 
     res.status(200).json(dados);
   } catch (error) {
-    console.error('Erro ao consultar localizacoes:', error);
-    res.status(400).json({ message: 'Erro ao consultar localizacoes', error });
+    console.error('Erro ao consultar historico de localizacoes:', error);
+    res.status(400).json({ message: 'Erro ao consultar historico de localizacoes', error });
   }
 });
 
@@ -213,7 +210,6 @@ app.get('/consulta', async (req, res) => {
 const server = app.listen(PORT, () => {
   console.log(`Servidor executando na porta ${PORT}`);
 });
-
 /**
  * ==========================================
  * Instanciação do Socket
@@ -257,17 +253,7 @@ amqp.connect('amqp://localhost', function(error0, connection) {
             ID_APARELHO: idAparelho,
           }
         });
-        console.log('Location saved:', location);
-
-        const aparelho = await prisma.APARELHO.findUnique({
-          where: {
-            ID: idAparelho
-          }
-        })
-
-        // Salva em cache >>>  ID: {LAT, LONG, DATAHORA}
-        await cache.set(`${cacheIdx++}`, {latitude, longitude, datahora: location.DATAHORA, id: aparelho.ID, descricao: aparelho.DESCRICAO}, (1000*60*60*24*3));
-
+        
         // Emite uma mensagem via Socket para o cliente (navegador)
         io.emit('novaLocalizacao', {LATITUDE: location.LATITUDE, LONGITUDE: location.LONGITUDE}); // Envia a nova localização para todos os clientes conectados
       } catch (error) {

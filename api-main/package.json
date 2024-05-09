@@ -24,6 +24,6 @@
   },
   "devDependencies": {
     "lru-ttl-cache": "^2.4.8",
-    "prisma": "^5.12.1"
+    "prisma": "^5.13.0"
   }
 }
