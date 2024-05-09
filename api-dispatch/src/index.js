@@ -97,6 +97,20 @@ amqp.connect('amqp://localhost', function(error0, connection) {
             },
         })
 
+
+        // Define a data de remoção como 3 dias antes da data atual
+        let dataRemocao = new Date();
+        dataRemocao.setHours(dataRemocao.getHours() - 72)
+
+        await prisma.MENSAGENS.deleteMany({
+          where: {
+            DATAHORAENVIO: {
+              not: null,       //Registros enviados
+              lte: dataRemocao //Registros mais antigos que data de remocao
+            },
+          },
+        })
+
         mensagens.forEach(msg => {
             channel.sendToQueue(queue, Buffer.from(msg.CONTEUDO), {
                 persistent: true
