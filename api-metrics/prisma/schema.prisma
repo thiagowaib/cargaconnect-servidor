@@ -1,0 +1,17 @@
+// Definição do provedor de banco de dados e conexão com o SQLite
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./metrics.db"
+}
+
+// Definição do modelo para a tabela MENSAGENS
+model METRICAS {
+  ID          String  @id @default(uuid())         // Chave primária com UUID
+  DISTANCIA   Float                                  // Distância como double (float)
+  APARELHO_ID String                                 // ID do aparelho
+  DATA        String
+}

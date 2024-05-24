@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package metrics;
+
+service Metrics {
+  rpc computeMetric(ComputeMetricRequest) returns (Result);
+}
+
+message ComputeMetricRequest {
+  double x1 = 2;
+  double y1 = 3;
+  double x2 = 4;
+  double y2 = 5;
+  string aparelho = 6;
+}
+
+message Result {
+  double distancia = 1;
+}

@@ -9,6 +9,11 @@ const bodyParser       = require('body-parser');
 const cors             = require('cors');
 const amqp             = require('amqplib/callback_api');
 const Keyv             = require('keyv');
+const { loadPackageDefinition } = require('@grpc/grpc-js');
+const { loadSync }              = require('@grpc/proto-loader');
+const packageDefinition         = loadSync('./../api-metrics/src/metrics.proto');
+const grpcObject                = loadPackageDefinition(packageDefinition);
+const metricsPackage            = grpcObject.metrics;
 
 const prisma = new PrismaClient();
 const cache  = new Keyv();
@@ -16,6 +21,16 @@ const app    = express();
 const PORT   = 3000;
 let cacheIdx = 0;
 
+/**
+ * ==========================================
+ * Configuração do Client GRPC
+ * ==========================================
+ */
+const { credentials, Client } = require('@grpc/grpc-js');
+const client = new metricsPackage.Metrics(
+  'localhost:50051',
+  credentials.createInsecure()
+);
 
 /**
  * ==========================================
@@ -257,6 +272,17 @@ amqp.connect('amqp://localhost', function(error0, connection) {
       console.log(" [x] Nova mensagem recebida, processando...");
       try {
         const { latitude, longitude, idAparelho } = JSON.parse(msg.content.toString());
+
+        // Busca ultima localizacao para calcular distancia percorrida
+        const ultimaLocalizacao = await prisma.LOCALIZACAO.findFirst({
+          where: {
+            ID_APARELHO: idAparelho
+          },
+          orderBy: {
+            DATAHORA: 'desc'
+          },
+        })
+
         const location = await prisma.LOCALIZACAO.create({
           data: {
             LATITUDE: latitude,
@@ -264,6 +290,22 @@ amqp.connect('amqp://localhost', function(error0, connection) {
             ID_APARELHO: idAparelho,
           }
         });
+
+        // Chama a função para computar a distancia
+        client.computeMetric({
+          x1: ultimaLocalizacao ? ultimaLocalizacao.LATITUDE : location.LATITUDE,
+          y1: ultimaLocalizacao ? ultimaLocalizacao.LONGITUDE : location.LONGITUDE,
+          x2: location.LATITUDE,
+          y2: location.LONGITUDE,
+          aparelho: location.ID_APARELHO,
+        }, (error, response) => {
+          if(error){
+            console.error("Houve um erro ao computar a distancia do aparelho: " + idAparelho)
+          } else {
+            console.log("Distancia computada para o aparelho: " + idAparelho + " >> " + response.distancia)
+          }
+        })
+
         // Remove o cache da consulta de aparelhos
         await cache.delete(`rest::/consulta`);
 
